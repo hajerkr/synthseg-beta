@@ -23,19 +23,28 @@ FROM python:3.10-slim AS freesurfer-builder
 
 ENV FREESURFER_HOME=/opt/freesurfer
 ENV DEBIAN_FRONTEND=non-interactive
+ARG FREESURFER_VERSION=7.4.1
 
 RUN apt-get update && apt-get install -y \
     wget tar unzip perl build-essential libsqlite3-dev python3 python3-pip imagemagick && rm -rf /var/lib/apt/lists/*
 
 # Install FreeSurfer (only required parts)
-RUN wget -qO- https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/7.4.1/freesurfer-linux-ubuntu22_amd64-7.4.1.tar.gz | tar -xz -C /opt
+RUN wget -vO- https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/${FREESURFER_VERSION}/freesurfer-linux-ubuntu22_amd64-${FREESURFER_VERSION}.tar.gz | tar -xz -C /opt
 RUN echo "source $FREESURFER_HOME/SetUpFreeSurfer.sh" >> ~/.bashrc
-# FreeSurfer environment variables
-ENV FREESURFER_HOME=/opt/freesurfer
-ENV FS_LICENSE='/opt/freesurfer/license.txt'
-ENV PATH='/opt/freesurfer/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/freesurfer/fsfast/bin:/opt/freesurfer/tktools:/opt/freesurfer/mni/bin:/sbin:/bin:/opt/ants/bin'
+
+COPY includes.txt .
+
+RUN mkdir -p /freesurfer
+
+RUN while IFS= read -r file; do \
+    mkdir -p /freesurfer/$(dirname "$file") && \
+    mv -v /opt/"$file" /freesurfer/"$file"; \
+    done < includes.txt
+
+#ENV FS_LICENSE='/opt/freesurfer/license.txt'
+#ENV PATH='/opt/freesurfer/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/freesurfer/fsfast/bin:/opt/freesurfer/tktools:/opt/freesurfer/mni/bin:/sbin:/bin:/opt/ants/bin'
 # 
-# ARG FREESURFER_VERSION=7.4.1
+# 
 # RUN apt-get update && apt-get install -y \
 #     wget \
 #     tar \
@@ -50,22 +59,17 @@ ENV PATH='/opt/freesurfer/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr
 # RUN wget -vO /tmp/freesurfer.tar.gz https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/${FREESURFER_VERSION}/freesurfer-linux-ubuntu22_amd64-${FREESURFER_VERSION}.tar.gz
 # RUN tar zxvf /tmp/freesurfer.tar.gz -C /opt
 
-COPY includes.txt .
-RUN mkdir -p /freesurfer
-RUN while IFS= read -r file; do \
-    mkdir -p /freesurfer/$(dirname "$file") && \
-    mv -v /opt/"$file" /freesurfer/"$file"; \
-    done < includes.txt
+
 
 # --- Final stage ---
 FROM python:3.10-slim
 
 # Copy FreeSurfer-related files from the first stage
 # FROM ubuntu:20.04
-COPY --from=freesurfer-builder /opt/freesurfer/bin/mri_synthseg /usr/local/bin/
-COPY --from=freesurfer-builder /opt/freesurfer/lib /usr/local/lib
-COPY --from=freesurfer-builder /usr/bin/convert /usr/bin/  
-# COPY --from=freesurfer-builder /freesurfer/ /opt/freesurfer/
+#COPY --from=freesurfer-builder /opt/freesurfer/bin/mri_synthseg /usr/local/bin/ #commented 25/03
+#COPY --from=freesurfer-builder /opt/freesurfer/lib /usr/local/lib #commented 25/03
+#COPY --from=freesurfer-builder /usr/bin/convert /usr/bin/   #commented 25/03
+COPY --from=freesurfer-builder /freesurfer/ /opt/freesurfer/
 
 # Copy FSL-related files from the second stage
 COPY --from=fsl-build /opt/conda /opt/conda
