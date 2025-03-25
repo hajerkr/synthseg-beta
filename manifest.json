@@ -47,7 +47,7 @@
     },
     "gear-builder": {
       "category": "analysis",
-      "image": "flywheel/beta-synthseg:0.0.1"
+      "image": "flywheel/beta-synthseg:0.0.2"
     },
     "kcl-app-binary": "app/main.sh",
     "kcl-app-modalities": [
@@ -105,5 +105,5 @@
   "name": "synthseg",
   "source": "https://github.com/BBillot/SynthSeg ",
   "url": "https://surfer.nmr.mgh.harvard.edu/",
-  "version": "0.0.1"
+  "version": "0.0.2"
 }

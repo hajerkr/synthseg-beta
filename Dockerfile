@@ -2,34 +2,39 @@
 FROM condaforge/miniforge3 AS fsl-build
 LABEL maintainer="FSL development team"
 ENV PATH="/opt/conda/bin:${PATH}"
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=non-interactive
+# Set FSLDIR environment variable
+ENV FSLDIR="/opt/conda"
 
 # Store FSL public conda channel
 ENV FSL_CONDA_CHANNEL="https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/public"
-COPY /entrypoint /entrypoint
+COPY entrypoint /entrypoint
 RUN chmod +x /entrypoint
 RUN /opt/conda/bin/conda install -n base -c conda-forge tini
 RUN /opt/conda/bin/conda install -n base -c $FSL_CONDA_CHANNEL fsl-flirt fsl-miscvis -c conda-forge
 
-# Set FSLDIR environment variable
-ENV FSLDIR="/opt/conda"
 
 # Configure entrypoint
 #RUN chmod a+x $FLYWHEEL/run.py
 
 # --- Build Stage for FreeSurfer ---
-
-FROM ubuntu:20.04 AS builder
-RUN apt-get update && apt-get install -y \
-    wget unzip perl build-essential libsqlite3-dev python3 python3-pip imagemagick && rm -rf /var/lib/apt/lists/*
-
-# Install FreeSurfer (only required parts)
-RUN wget -qO- https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/7.4.1/freesurfer-linux-centos7_xx.tar.gz | tar -xz -C /opt
-ENV FREESURFER_HOME=/opt/freesurfer
-RUN echo "source $FREESURFER_HOME/SetUpFreeSurfer.sh" >> ~/.bashrc
+#FROM ubuntu:20.04 AS builder
 FROM python:3.10-slim AS freesurfer-builder
 
-# ENV DEBIAN_FRONTEND=non-interactive
+ENV FREESURFER_HOME=/opt/freesurfer
+ENV DEBIAN_FRONTEND=non-interactive
+
+RUN apt-get update && apt-get install -y \
+    wget tar unzip perl build-essential libsqlite3-dev python3 python3-pip imagemagick && rm -rf /var/lib/apt/lists/*
+
+# Install FreeSurfer (only required parts)
+RUN wget -qO- https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/7.4.1/freesurfer-linux-ubuntu22_amd64-7.4.1.tar.gz | tar -xz -C /opt
+RUN echo "source $FREESURFER_HOME/SetUpFreeSurfer.sh" >> ~/.bashrc
+# FreeSurfer environment variables
+ENV FREESURFER_HOME=/opt/freesurfer
+ENV FS_LICENSE='/opt/freesurfer/license.txt'
+ENV PATH='/opt/freesurfer/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/freesurfer/fsfast/bin:/opt/freesurfer/tktools:/opt/freesurfer/mni/bin:/sbin:/bin:/opt/ants/bin'
+# 
 # ARG FREESURFER_VERSION=7.4.1
 # RUN apt-get update && apt-get install -y \
 #     wget \
@@ -56,11 +61,10 @@ RUN while IFS= read -r file; do \
 FROM python:3.10-slim
 
 # Copy FreeSurfer-related files from the first stage
-FROM ubuntu:20.04
-COPY --from=builder /opt/freesurfer/bin/mri_synthseg /usr/local/bin/
-COPY --from=builder /opt/freesurfer/lib /usr/local/lib
-COPY --from=builder /usr/bin/convert /usr/bin/  
-
+# FROM ubuntu:20.04
+COPY --from=freesurfer-builder /opt/freesurfer/bin/mri_synthseg /usr/local/bin/
+COPY --from=freesurfer-builder /opt/freesurfer/lib /usr/local/lib
+COPY --from=freesurfer-builder /usr/bin/convert /usr/bin/  
 # COPY --from=freesurfer-builder /freesurfer/ /opt/freesurfer/
 
 # Copy FSL-related files from the second stage
